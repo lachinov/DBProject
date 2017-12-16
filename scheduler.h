@@ -123,6 +123,8 @@ namespace wrr_queue
 			for(auto v : m_input_queues)
 				waiter_list.push_back(v.get());
 
+			this->wait_any(waiter_list);
+
 			while (!stop)
 			{
 				m_service_round_weights = m_weights;
@@ -151,7 +153,7 @@ namespace wrr_queue
 						m_queue_responce_time[j].push_back(finish_time - op.get_time());
 						++m_queue_operations_count[j];
 						if (m_input_queues[j]->size() == 0)
-							m_queue_finishing_time[j] = this->report_time();
+							m_queue_finishing_time[j] = this->report_time() + op_time;
 
 						this->wait_any(waiter_list);
 					}
@@ -165,6 +167,21 @@ namespace wrr_queue
 			}
 		}
 
+		const std::vector<uint64_t> &get_finishing_time() const
+		{
+			return m_queue_finishing_time;
+		}
+
+		const std::vector<uint64_t> &get_operations_count() const
+		{
+			return m_queue_operations_count;
+		}
+
+		const std::vector<std::vector<uint64_t> > &get_responce_time() const
+		{
+			return m_queue_responce_time;
+		}
+
 	private:
 
 		std::shared_ptr<queue> m_device_queue;
@@ -172,12 +189,9 @@ namespace wrr_queue
 		std::vector<uint32_t> m_weights;
 		std::vector<uint32_t> m_service_round_weights;
 
-		bool m_stop;
-
-		uint64_t m_device_read_time;
-		uint64_t m_device_write_time;
-		uint64_t m_device_queue_size;
-
+		const uint64_t m_device_read_time;
+		const uint64_t m_device_write_time;
+		const uint64_t m_device_queue_size;
 
 		std::vector<uint64_t> m_queue_finishing_time;
 		std::vector<uint64_t> m_queue_operations_count;
