@@ -53,18 +53,6 @@ uint64_t get_tsc()
             int r_tsc;
     };
 
-    class application
-    {
-        public:
-            application();
-            void push_request(tracer::request *req);
-            int get_size();
-            std::map<int, tracer::request*>& get_map();
-        private:
-            std::map<int, tracer::request*> a_requests;
-            bool a_init;
-    };
-
     class simulation
     {
         public:
@@ -114,8 +102,6 @@ uint64_t get_tsc()
             std::string s_file;
             /* number of requests to simulate */
             int s_num_requests;
-            /* app that stores the requests */
-            application app;
 
             std::ofstream s_out;
     };
