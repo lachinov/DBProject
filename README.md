@@ -1,10 +1,16 @@
-#CMD args
+# CMD args
 -i <input path> -o <output path> -w <weights path> -rt <read time> - wt <write time> -qs <dev queue size>
+
 -i path to trace csv
+
 -o path to output file. File either shouldn't exist or be modifiable
+
 -w path to weights csv
+
 -rt page read time (in units)
+
 -wt page write time (in units)
+
 -qs size of the device queue
 
 # Example
