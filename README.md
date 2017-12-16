@@ -1,5 +1,5 @@
 # CMD args
--i <input path> -o <output path> -w <weights path> -rt <read time> - wt <write time> -qs <dev queue size>
+-i \<input path\> -o \<output path\> -w \<weights path\> -rt \<read time\> - wt \<write time\> -qs \<dev queue size\>
 
 -i path to trace csv
 
