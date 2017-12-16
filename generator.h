@@ -2,7 +2,7 @@
 #include <random>
 
 namespace gen {
-
+    
     typedef enum {
         R_READ = 0,
         R_WRITE
@@ -15,9 +15,9 @@ class generator {
             req_type request_type();
             int request_number_of_pages();
             int request_timestamp();
-            uint64_t read_rdtscp();
+            static uint64_t read_rdtscp();
             void request_init();
-            uint64_t read_rdstscp();
+            
         private:
             
             int _rand_uniform(int max);

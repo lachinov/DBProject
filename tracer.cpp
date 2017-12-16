@@ -50,9 +50,9 @@ std::map<int, request*>& application::get_map()
     return a_requests;
 }
 
-simulation::simulation(int tx_sz, int cp_sz, int comp_sz, std::string file, int requests) :
+simulation::simulation(int tx_sz, int cp_sz, int comp_sz, std::string file, int requests, int compact) :
     s_tx_buff_size(tx_sz), s_checkpoint_size_per_op(cp_sz), s_compact_size_per_op(comp_sz),
-    s_file(file), s_num_requests(requests)
+    s_file(file), s_num_requests(requests), s_compact_trigger(compact)
 {
 }
 
@@ -60,7 +60,7 @@ simulation::simulation(int tx_sz, int cp_sz, int comp_sz, std::string file, int 
 void simulation::run()
 {
     s_out.open(s_file);
-    
+
     _process_requests();
 
     s_out.close();
@@ -106,11 +106,13 @@ void simulation::_create_requests()
 
 void simulation::_process_requests()
 {
-    int acc_buffers = 0, total_used_buffers = 0;
-    for(auto it = app.get_map().begin(); it != app.get_map().end(); ++it) {
-        auto req = it->second;
+    int acc_buffers = 0, acc_compact = 0, total_used_buffers = 0;
+   
+    while(total_used_buffers <= s_num_requests) {
+        request *req = _alloc_request(); 
 
         acc_buffers += req->get_number_of_pages();
+        acc_compact += req->get_number_of_pages();
 
         if(acc_buffers >= s_tx_buff_size)
             acc_buffers -= _do_checkpoint(req->get_number_of_pages());
@@ -119,11 +121,16 @@ void simulation::_process_requests()
 
         total_used_buffers += req->get_number_of_pages();
 
-        if(!(total_used_buffers % s_compact_trigger))
+        if(acc_compact >= s_compact_trigger) {
             acc_buffers -= _do_compact();
+            acc_compact = 0;
+        }
+        free(req);
     }
-
-    //TODO: finish cp and compaction
+    std::cout << acc_buffers << std::endl;
+    while(acc_buffers >= 1)
+        acc_buffers -= _do_checkpoint(acc_buffers);
+    
 }
 
 void simulation::_do_commit(request* req)
@@ -133,13 +140,16 @@ void simulation::_do_commit(request* req)
     for(int i = 0; i < n; i++)
         _write_to_file(
             simulation::threads::S_COMMIT,
-            req->get_page(), req->get_op_type(), req->get_tsc()); 
+            req->get_page(), req->get_op_type(), gen::generator::read_rdtscp()); 
 }
 
 int simulation::_do_checkpoint(int buff)
 {
     gen::generator g(buff);
     int n_freed_buffers = g.request_number_of_pages() + buff;
+
+    n_freed_buffers = (n_freed_buffers >= s_checkpoint_size_per_op) ?
+        s_checkpoint_size_per_op : n_freed_buffers;
 
     for(int i = 0; i < n_freed_buffers; i++)
         _write_to_file(
@@ -158,18 +168,18 @@ int simulation::_do_compact()
 
     for(int i = 0; i < n_reads; i++) {
         _write_to_file(
-            simulation::threads::S_CHECKPOINT,
+            simulation::threads::S_COMPACTION,
             i, req_type::R_READ, g_reads.read_rdtscp());
         if(i >= n_writes)
         _write_to_file(
-            simulation::threads::S_CHECKPOINT,
+            simulation::threads::S_COMPACTION,
             i, req_type::R_WRITE, g_writes.read_rdtscp());
     }
     int total = n_reads - n_writes;
     return (total >= 0) ? total : 0;
 }
 
-void simulation::_write_to_file(simulation::threads id, int page, int op, int time)
+void simulation::_write_to_file(simulation::threads id, int page, int op, uint64_t time)
 {
     s_out << id << "," << page << "," << op << "," << time << "\n";
 }
@@ -186,7 +196,7 @@ void simulation::_write_to_file(simulation::threads id, int page, int op, int ti
 int main()
 {
     int i = 0;
-    simulation sim(10, 10, 10, "parse2.csv", 10);
+    simulation sim(100, 2, 10, "parse2.csv", 1000000, 1000);
     sim.run();
 }
 #endif

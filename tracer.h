@@ -16,6 +16,16 @@
 #define SIMULATION_TIME (60 * 60 * 24 * 1000) // 24 hours in miliseconds
 
 namespace tracer {
+
+uint64_t get_tsc()
+{
+    uint32_t a, d, c;
+
+    __asm__ volatile("rdtscp" : "=a" (a),"=d" (d), "=c" (c));
+    return (((uint64_t) a) | (((uint64_t) d) << 32));
+}
+
+
     typedef enum {
         R_READ = 0,
         R_WRITE
@@ -66,12 +76,13 @@ namespace tracer {
             } threads;
             /* constructor with the sizes parameters
              *
-             * @tx_sz transactino buffer size
+             * @tx_sz transaction buffer size
              * @cp_sz checkpoint size per operation
              * @comp_sz compaction size per operation
              * @file filename where the traces are going to be stored
-             * @requests number of requests to simulate */
-            simulation(int tx_sz, int cp_sz, int comp_sz, std::string file, int requests);
+             * @requests number of requests to simulate
+             * @compact thresold to start compaction*/
+            simulation(int tx_sz, int cp_sz, int comp_sz, std::string file, int requests, int compact);
             /* runs the simulation */
             void run();
         private:
@@ -87,7 +98,7 @@ namespace tracer {
 
             int _do_compact();
 
-            void _write_to_file(simulation::threads id, int page, int op, int time);
+            void _write_to_file(simulation::threads id, int page, int op, uint64_t time);
 
             /* maximum transaction buffer size (page #) */
             int s_tx_buff_size;
