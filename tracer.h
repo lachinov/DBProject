@@ -6,6 +6,8 @@
 #include <chrono>
 #include <map>
 #include <math.h>
+#include <fstream>
+#include <iostream>
 
 #define NUMBER_OF_REQUESTS (1000000)
 
@@ -73,14 +75,19 @@ namespace tracer {
             /* runs the simulation */
             void run();
         private:
-            tracer::request* _alloc_request();
+            request* _alloc_request();
+            
             void _create_requests();
 
             void _process_requests();
 
-            void _do_checkpoint();
+            void _do_commit(request* req);
 
-            void _do_commit();
+            int _do_checkpoint(int buff);
+
+            int _do_compact();
+
+            void _write_to_file(simulation::threads id, int page, int op, int time);
 
             /* maximum transaction buffer size (page #) */
             int s_tx_buff_size;
@@ -88,11 +95,17 @@ namespace tracer {
             int s_checkpoint_size_per_op;
             /* maximum number of pages compacted per op */
             int s_compact_size_per_op;
+            /* compaction trigger, when the number of used
+             * buffers reach this value, then it triggers
+             * the compaction operation. */
+            int s_compact_trigger;
             /* path to the file that is going to save the outputs */
             std::string s_file;
             /* number of requests to simulate */
             int s_num_requests;
             /* app that stores the requests */
-            tracer::application app;
+            application app;
+
+            std::ofstream s_out;
     };
 }

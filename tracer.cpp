@@ -3,6 +3,7 @@
 #include "generator.h"
 
 using namespace tracer;
+
 request::request(int page, req_type type, int n_pages, int tsc) : r_page(page),
     r_type(type), r_n_pages(n_pages), r_tsc(tsc)
 {
@@ -58,19 +59,24 @@ simulation::simulation(int tx_sz, int cp_sz, int comp_sz, std::string file, int 
 /* runs the simulation */
 void simulation::run()
 {
-    _create_requests();
+    s_out.open(s_file);
+    
     _process_requests();
+
+    s_out.close();
 }
 
 request* simulation::_alloc_request()
 {
-    gen::generator g;
-    /*request *tmp = new request(
+    gen::generator g(NUMBER_OF_PAGES);
+    auto parse_op = [] (int i) { return static_cast<req_type>(i); };
+
+    request *tmp = new request(
             g.request_page(),
-            g.request_type(),
+            parse_op(g.request_type()),
             g.request_number_of_pages(),
-            g.request_timestamp());*/
-    request *tmp;
+            g.request_timestamp());
+            
     return tmp;
 }
 
@@ -81,7 +87,7 @@ void simulation::_create_requests()
      * result in the same tsc (which is the key for
      * the map) then later we check if the map size
      * is equal to NUMBER_OF_REQUESTS or not. */
-    for(int i = 0; i < NUMBER_OF_REQUESTS; i++) {
+    for(int i = 0; i < s_num_requests; i++) {
         app.push_request(_alloc_request());
     }
     /* So, now that we have tried to insert NUMBER_OF_REQUESTS
@@ -93,27 +99,79 @@ void simulation::_create_requests()
      * much closer to the NUMBER_OF_REQUESTS than if we did
      * it in previous loop. 
      * INFO: Sorry for duplicated code */
-    while(app.get_size() <= NUMBER_OF_REQUESTS) {
+    while(app.get_size() <= s_num_requests) {
         app.push_request(_alloc_request());
     }
 }
 
 void simulation::_process_requests()
 {
-    int acc_buffers;
+    int acc_buffers = 0, total_used_buffers = 0;
     for(auto it = app.get_map().begin(); it != app.get_map().end(); ++it) {
-        std::cout << it->first << std::endl;
+        auto req = it->second;
 
+        acc_buffers += req->get_number_of_pages();
+
+        if(acc_buffers >= s_tx_buff_size)
+            acc_buffers -= _do_checkpoint(req->get_number_of_pages());
+
+        _do_commit(req);
+
+        total_used_buffers += req->get_number_of_pages();
+
+        if(!(total_used_buffers % s_compact_trigger))
+            acc_buffers -= _do_compact();
     }
+
+    //TODO: finish cp and compaction
 }
 
-void simulation::_do_checkpoint()
+void simulation::_do_commit(request* req)
 {
+    int n = req->get_number_of_pages();
 
+    for(int i = 0; i < n; i++)
+        _write_to_file(
+            simulation::threads::S_COMMIT,
+            req->get_page(), req->get_op_type(), req->get_tsc()); 
 }
 
-void simulation::_do_commit()
+int simulation::_do_checkpoint(int buff)
 {
+    gen::generator g(buff);
+    int n_freed_buffers = g.request_number_of_pages() + buff;
+
+    for(int i = 0; i < n_freed_buffers; i++)
+        _write_to_file(
+            simulation::threads::S_CHECKPOINT,
+            i, req_type::R_WRITE, g.read_rdtscp());
+    return n_freed_buffers;
+}
+
+int simulation::_do_compact()
+{
+    gen::generator g_reads(s_compact_size_per_op);
+    int n_reads = g_reads.request_number_of_pages();
+
+     gen::generator g_writes(n_reads);
+    int n_writes = g_writes.request_number_of_pages();
+
+    for(int i = 0; i < n_reads; i++) {
+        _write_to_file(
+            simulation::threads::S_CHECKPOINT,
+            i, req_type::R_READ, g_reads.read_rdtscp());
+        if(i >= n_writes)
+        _write_to_file(
+            simulation::threads::S_CHECKPOINT,
+            i, req_type::R_WRITE, g_writes.read_rdtscp());
+    }
+    int total = n_reads - n_writes;
+    return (total >= 0) ? total : 0;
+}
+
+void simulation::_write_to_file(simulation::threads id, int page, int op, int time)
+{
+    s_out << id << "," << page << "," << op << "," << time << "\n";
 }
 
 
@@ -124,12 +182,11 @@ void simulation::_do_commit()
 //-----------------------------------------------------------
 // Testing section
 //-----------------------------------------------------------
-#ifdef _TEST_GENERATOR
+#ifdef _TEST_TRACER
 int main()
 {
     int i = 0;
-    while (i++ < 10)
-    ;
-       // std::cout << generator::request_page() << std::endl;
+    simulation sim(10, 10, 10, "parse2.csv", 10);
+    sim.run();
 }
 #endif

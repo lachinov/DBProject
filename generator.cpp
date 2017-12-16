@@ -12,9 +12,9 @@ generator::generator(int pages) : g_num_pages(pages), g_is_initialized(false), g
 {
 }
 
-uint64_t generator::request_page()
+int generator::request_page()
 {
-    return static_cast<uint64_t>(_rand_uniform(g_num_pages));
+    return _rand_uniform(g_num_pages);
 }
 
 req_type generator::request_type()
@@ -26,14 +26,14 @@ req_type generator::request_type()
 int generator::request_number_of_pages()
 {
     /* I am using lambda = 1 */
-    return ceil(_rand_exponential(1));
+    return (1 + floor(_rand_exponential(1)));
 }
 
 int generator::request_timestamp()
 {
 init:
     if(g_is_initialized)
-        return (_read_rdtscp() - g_init_timestamp);
+        return (read_rdtscp() - g_init_timestamp);
     else {
         request_init();
         goto init;
@@ -44,11 +44,11 @@ void generator::request_init()
 {
     if(!g_is_initialized) {
         g_is_initialized = true;
-        g_init_timestamp = _read_rdtscp();
+        g_init_timestamp = read_rdtscp();
     }
 }
 
-uint64_t generator::_read_rdtscp()
+uint64_t generator::read_rdtscp()
 {
     uint32_t a, d, c;
 
@@ -58,15 +58,15 @@ uint64_t generator::_read_rdtscp()
 
 int generator::_rand_uniform(int max)
 {
-    static std::default_random_engine generator(_read_rdtscp());
+    static std::default_random_engine generator(read_rdtscp());
     std::uniform_int_distribution<int> distribution(0,max);
 
     return distribution(generator);
 }
 
-int generator::_rand_exponential(int lambda) 
+int generator::_rand_exponential(double lambda) 
 {
-    static std::default_random_engine generator(_read_rdtscp());
+    static std::default_random_engine generator(read_rdtscp());
     std::exponential_distribution<double> distribution(lambda);
 
     return distribution(generator);
@@ -78,8 +78,12 @@ int generator::_rand_exponential(int lambda)
 using namespace std;
 int main() {
     gen::generator g(1000);
-    for(int i = 0; i < 10; i++)
-        cout << g.request_page() << endl;
+    for(int i = 0; i < 10; i++) {
+        cout << "page = " << g.request_page() << endl;
+        cout << "type = " << g.request_type() << endl;
+        cout << "# pg = " << g.request_number_of_pages() << endl;
+        cout << " tsc = " << g.request_timestamp() << endl;
+    }
 }
 
 #endif
