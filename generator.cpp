@@ -11,10 +11,8 @@ using namespace gen;
 
 uint64_t generator::read_rdtscp()
 {
-    uint32_t a, d, c;
-
-    __asm__ volatile("rdtscp" : "=a" (a),"=d" (d), "=c" (c));
-    return (((uint64_t) a) | (((uint64_t) d) << 32));
+    static uint64_t timestamp = 0;
+    return timestamp++;
 }
 
 generator::generator(int pages) : g_num_pages(pages), g_is_initialized(false), g_init_timestamp(0)
