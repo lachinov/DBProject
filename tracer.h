@@ -9,19 +9,19 @@
 #include <fstream>
 #include <iostream>
 
-#define NUMBER_OF_PAGES (100000)
+#define NUMBER_OF_PAGES (10000000)
 
 #define SIMULATION_TIME (60 * 60 * 24 * 1000) // 24 hours in miliseconds
 
 namespace tracer {
 
-uint64_t get_tsc()
-{
-    uint32_t a, d, c;
+    uint64_t get_tsc()
+    {
+        uint32_t a, d, c;
 
-    __asm__ volatile("rdtscp" : "=a" (a),"=d" (d), "=c" (c));
-    return (((uint64_t) a) | (((uint64_t) d) << 32));
-}
+        __asm__ volatile("rdtscp" : "=a" (a),"=d" (d), "=c" (c));
+        return (((uint64_t) a) | (((uint64_t) d) << 32));
+    }
 
 
     typedef enum {
@@ -73,14 +73,14 @@ uint64_t get_tsc()
             void run();
         private:
             request* _alloc_request();
-            
+
             void _create_requests();
 
             void _process_requests();
 
             void _do_commit(request* req);
 
-            int _do_checkpoint(int buff);
+            int _do_checkpoint();
 
             int _do_compact();
 
@@ -100,6 +100,8 @@ uint64_t get_tsc()
             std::string s_file;
             /* number of requests to simulate */
             int s_num_requests;
+            /* checkpoint list of pages that needs to be cp */
+            std::map<int, int> cp_list;
 
             std::ofstream s_out;
     };

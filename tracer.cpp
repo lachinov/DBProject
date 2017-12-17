@@ -55,60 +55,73 @@ request* simulation::_alloc_request()
             parse_op(g.request_type()),
             g.request_number_of_pages(),
             g.request_timestamp());
-            
+
     return tmp;
 }
 
 void simulation::_process_requests()
 {
     int acc_buffers = 0, acc_compact = 0, total_used_buffers = 0;
-   
+
     while(total_used_buffers <= s_num_requests) {
-        request *req = _alloc_request(); 
+        request *req = _alloc_request();
 
         acc_buffers += req->get_number_of_pages();
         acc_compact += req->get_number_of_pages();
 
+        /* here we check if we need to do checkpoint */
         if(acc_buffers >= s_tx_buff_size)
-            acc_buffers -= _do_checkpoint(req->get_number_of_pages());
+            acc_buffers -= _do_checkpoint();
 
+        /* performs the commit operation */
         _do_commit(req);
 
         total_used_buffers += req->get_number_of_pages();
 
+        /* here we check if the compaction thread must be started */
         if(acc_compact >= s_compact_trigger) {
             acc_buffers -= _do_compact();
             acc_compact = 0;
         }
         free(req);
     }
+
+    /* now we must check if we still have pages in the cp list
+     * that must be checkpointed (the remainder pages)*/
     while(acc_buffers >= 1)
-        acc_buffers -= _do_checkpoint(acc_buffers);
-    
+        acc_buffers -= _do_checkpoint();
 }
 
 void simulation::_do_commit(request* req)
 {
     int n = req->get_number_of_pages();
 
-    for(int i = 0; i < n; i++)
+    for(int i = 0; i < n; i++) {
         _write_to_file(
-            simulation::threads::S_COMMIT,
-            req->get_page(), req->get_op_type(), gen::generator::read_rdtscp()); 
+                simulation::threads::S_COMMIT,
+                (req->get_page()+i), req->get_op_type(), gen::generator::read_rdtscp());
+        cp_list[req->get_page() + i] = req->get_page() + i;
+    }
 }
 
-int simulation::_do_checkpoint(int buff)
+int simulation::_do_checkpoint()
 {
-    gen::generator g(buff);
-    int n_freed_buffers = g.request_number_of_pages() + buff;
+    gen::generator g(cp_list.size());
+    int i = 0;
+    int n_freed_buffers = g.request_number_of_pages();
 
     n_freed_buffers = (n_freed_buffers >= s_checkpoint_size_per_op) ?
         s_checkpoint_size_per_op : n_freed_buffers;
+    /* sanity check */
+    if(n_freed_buffers > cp_list.size())
+        n_freed_buffers = cp_list.size();
 
-    for(int i = 0; i < n_freed_buffers; i++)
+    for(auto it = cp_list.begin(); i < n_freed_buffers; i++, ++it) {
         _write_to_file(
-            simulation::threads::S_CHECKPOINT,
-            i, req_type::R_WRITE, g.read_rdtscp());
+                simulation::threads::S_CHECKPOINT,
+                it->first, req_type::R_WRITE, g.read_rdtscp());
+        cp_list.erase(it);
+    }
     return n_freed_buffers;
 }
 
@@ -117,17 +130,17 @@ int simulation::_do_compact()
     gen::generator g_reads(s_compact_size_per_op);
     int n_reads = g_reads.request_number_of_pages();
 
-     gen::generator g_writes(n_reads);
+    gen::generator g_writes(n_reads);
     int n_writes = g_writes.request_number_of_pages();
 
     for(int i = 0; i < n_reads; i++) {
         _write_to_file(
-            simulation::threads::S_COMPACTION,
-            i, req_type::R_READ, g_reads.read_rdtscp());
+                simulation::threads::S_COMPACTION,
+                i, req_type::R_READ, g_reads.read_rdtscp());
         if(i >= n_writes)
-        _write_to_file(
-            simulation::threads::S_COMPACTION,
-            i, req_type::R_WRITE, g_writes.read_rdtscp());
+            _write_to_file(
+                    simulation::threads::S_COMPACTION,
+                    i, req_type::R_WRITE, g_writes.read_rdtscp());
     }
     int total = n_reads - n_writes;
     return (total >= 0) ? total : 0;
@@ -143,9 +156,9 @@ void simulation::_write_to_file(simulation::threads id, int page, int op, uint64
 //-----------------------------------------------------------
 void cmd_info()
 {
-	std::cerr << "incorrect cmp arguments\n";
-	std::cerr << "-tx <transaction size> -cp <checkpoint size>" \
-    " -cmp <compaction size> -file <output file> - req <number of requests> -trigger <compact trigger>\n";
+    std::cerr << "incorrect cmp arguments\n";
+    std::cerr << "-tx <transaction size> -cp <checkpoint size>" \
+        " -cmp <compaction size> -file <output file> - req <number of requests> -trigger <compact trigger>\n";
 }
 
 int main(int argc, char **argv)
