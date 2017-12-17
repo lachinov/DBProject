@@ -1,7 +1,9 @@
+#include <cstring>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
 #include <numeric>
+
 #include "scheduler.h"
 #include "parser.h"
 
