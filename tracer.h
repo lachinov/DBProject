@@ -9,8 +9,6 @@
 #include <fstream>
 #include <iostream>
 
-#define NUMBER_OF_REQUESTS (1000000)
-
 #define NUMBER_OF_PAGES (100000)
 
 #define SIMULATION_TIME (60 * 60 * 24 * 1000) // 24 hours in miliseconds

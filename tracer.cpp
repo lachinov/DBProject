@@ -1,4 +1,4 @@
-
+#include <cstring>
 #include "tracer.h"
 #include "generator.h"
 
@@ -82,7 +82,6 @@ void simulation::_process_requests()
         }
         free(req);
     }
-    std::cout << acc_buffers << std::endl;
     while(acc_buffers >= 1)
         acc_buffers -= _do_checkpoint(acc_buffers);
     
@@ -139,19 +138,60 @@ void simulation::_write_to_file(simulation::threads id, int page, int op, uint64
     s_out << id << "," << page << "," << op << "," << time << "\n";
 }
 
-
-//#########################################
-
-
-
 //-----------------------------------------------------------
-// Testing section
+// Generator
 //-----------------------------------------------------------
-#ifdef _TEST_TRACER
-int main()
+void cmd_info()
 {
-    int i = 0;
-    simulation sim(100, 2, 10, "parse2.csv", 1000000, 1000);
+	std::cerr << "incorrect cmp arguments\n";
+	std::cerr << "-tx <transaction size> -cp <checkpoint size>" \
+    " -cmp <compaction size> -file <output file> - req <number of requests> -trigger <compact trigger>\n";
+}
+
+int main(int argc, char **argv)
+{
+    uint32_t arg_parse_state = 0;
+    int tx_size =0, cp_size = 0, cmp_size, requests = 0, trigger = 0;
+    std::string filename;
+
+    if(argc == 1 || argc % 2 == 0) {
+        cmd_info();
+        return 1;
+    }
+
+    for(int i = 1; i < argc; ++i)
+    {
+        if(!std::strcmp(argv[i], "-tx")) {
+            tx_size = std::stoi(argv[++i]);
+            arg_parse_state |= 0x1;
+
+        } else if (!std::strcmp(argv[i], "-cp")) {
+            cp_size = std::stoi(argv[++i]);
+            arg_parse_state |= 0x1 << 1;
+
+        } else if (!std::strcmp(argv[i], "-cmp")) {
+            cmp_size = std::stoi(argv[++i]);
+            arg_parse_state |= 0x1 << 2;
+
+        } else if (!std::strcmp(argv[i], "-file")) {
+            filename = std::string(argv[++i]);
+            arg_parse_state |= 0x1 << 3;
+
+        } else if (!std::strcmp(argv[i], "-req")) {
+            requests = std::stoi(argv[++i]);
+            arg_parse_state |= 0x1 << 4;
+
+        } else if (!std::strcmp(argv[i], "-trigger")) {
+            trigger = std::stoi(argv[++i]);
+            arg_parse_state |= 0x1 << 5;
+        }
+    }
+
+    if(arg_parse_state != 0x3F) {
+        cmd_info();
+        return 1;
+    }
+
+    simulation sim(tx_size, cp_size, cmp_size, filename, requests, trigger);
     sim.run();
 }
-#endif
